@@ -17,6 +17,14 @@ console.log('========================================');
 console.log('📋 环境变量配置状态:');
 console.log('========================================');
 
+
+const HTTP_PROXY = process.env.HTTP_PROXY;
+const SUB_URL = process.env.SUB_URL;
+
+// 添加额外调试
+console.log('[调试] SUB_URL 原始值:', SUB_URL);
+console.log('[调试] SUB_URL 类型:', typeof SUB_URL);
+console.log('[调试] SUB_URL 长度:', SUB_URL ? SUB_URL.length : 0);
 // 检查并显示 USERS_JSON
 if (process.env.USERS_JSON) {
     try {

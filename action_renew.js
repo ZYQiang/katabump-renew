@@ -10,6 +10,95 @@ const TG_BOT_TOKEN = process.env.TG_BOT_TOKEN;
 const TG_CHAT_ID = process.env.TG_CHAT_ID;
 const TG_THREAD_ID = process.env.TG_THREAD_ID;
 
+// ==========================================
+// ========== 环境变量调试日志 ==========
+// ==========================================
+console.log('========================================');
+console.log('📋 环境变量配置状态:');
+console.log('========================================');
+
+// 检查并显示 USERS_JSON
+if (process.env.USERS_JSON) {
+    try {
+        const parsed = JSON.parse(process.env.USERS_JSON);
+        let userCount = 0;
+        if (Array.isArray(parsed)) {
+            userCount = parsed.length;
+        } else if (parsed && Array.isArray(parsed.users)) {
+            userCount = parsed.users.length;
+        } else if (parsed && typeof parsed === 'object') {
+            userCount = 1;
+        }
+        console.log(`✅ USERS_JSON: 已配置 (${userCount} 个用户)`);
+    } catch (e) {
+        console.log(`❌ USERS_JSON: 格式错误`);
+    }
+} else {
+    console.log(`❌ USERS_JSON: 未配置`);
+}
+
+// 检查 SUB_URL
+if (process.env.SUB_URL) {
+    const subUrl = process.env.SUB_URL;
+    const maskedSub = subUrl.length > 30 ? subUrl.substring(0, 30) + '...' : subUrl;
+    console.log(`✅ SUB_URL: ${maskedSub}`);
+} else {
+    console.log(`❌ SUB_URL: 未配置`);
+}
+
+// 检查 HTTP_PROXY
+if (process.env.HTTP_PROXY) {
+    const proxy = process.env.HTTP_PROXY;
+    let maskedProxy = proxy;
+    try {
+        const url = new URL(proxy);
+        if (url.username) {
+            maskedProxy = `${url.protocol}//${url.username}:***@${url.hostname}${url.port ? ':' + url.port : ''}`;
+        } else {
+            maskedProxy = proxy;
+        }
+    } catch (e) {
+        maskedProxy = proxy.length > 30 ? proxy.substring(0, 30) + '...' : proxy;
+    }
+    console.log(`✅ HTTP_PROXY: ${maskedProxy}`);
+} else {
+    console.log(`❌ HTTP_PROXY: 未配置`);
+}
+
+// 检查 TG_BOT_TOKEN
+if (process.env.TG_BOT_TOKEN) {
+    const token = process.env.TG_BOT_TOKEN;
+    const maskedToken = token.length > 10 ? token.substring(0, 10) + '...' : token;
+    console.log(`✅ TG_BOT_TOKEN: ${maskedToken}`);
+} else {
+    console.log(`❌ TG_BOT_TOKEN: 未配置`);
+}
+
+// 检查 TG_CHAT_ID
+if (process.env.TG_CHAT_ID) {
+    console.log(`✅ TG_CHAT_ID: ${process.env.TG_CHAT_ID}`);
+} else {
+    console.log(`❌ TG_CHAT_ID: 未配置`);
+}
+
+// 检查 TG_THREAD_ID
+if (process.env.TG_THREAD_ID) {
+    console.log(`✅ TG_THREAD_ID: ${process.env.TG_THREAD_ID}`);
+} else {
+    console.log(`❌ TG_THREAD_ID: 未配置 (可选)`);
+}
+
+// 判断使用的代理模式
+if (process.env.SUB_URL) {
+    console.log(`🔀 代理模式: SUB_URL (Mihomo 代理池)`);
+} else if (process.env.HTTP_PROXY) {
+    console.log(`🔀 代理模式: HTTP_PROXY (固定代理)`);
+} else {
+    console.log(`🔀 代理模式: 无代理 (直连)`);
+}
+
+console.log('========================================\n');
+
 let stats = {
     total: 0,
     success: 0,
@@ -220,9 +309,13 @@ async function launchChrome() {
     if (process.env.SUB_URL) {
         args.push('--proxy-server=http://127.0.0.1:7890');
         args.push('--proxy-bypass-list=<-loopback>');
+        console.log('[Chrome] 使用 SUB_URL 代理模式 (127.0.0.1:7890)');
     } else if (PROXY_CONFIG) {
         args.push(`--proxy-server=${PROXY_CONFIG.server}`);
         args.push('--proxy-bypass-list=<-loopback>');
+        console.log(`[Chrome] 使用 HTTP_PROXY 代理模式 (${PROXY_CONFIG.server})`);
+    } else {
+        console.log('[Chrome] 无代理模式 (直连)');
     }
     const errLogPath = path.join(process.cwd(), 'chrome_err.log');
     const errStream = fs.openSync(errLogPath, 'w');
@@ -706,7 +799,7 @@ async function setupMihomo(subUrl) {
             execSync('curl -L -o mihomo.gz https://github.com/MetaCubeX/mihomo/releases/download/v1.18.9/mihomo-linux-amd64-v1.18.9.gz');
             execSync('gzip -d mihomo.gz');
             execSync('chmod +x mihomo');
-            console.log('[代理池] Mihomo 下载完成！');
+            console.log('[代理池] ✅ Mihomo 下载完成！');
         } catch (e) {
             console.error('[代理池] 下载 Mihomo 失败:', e.message);
             return false;
@@ -864,20 +957,22 @@ async function switchMihomoProxy(name) {
     const renewDates = loadRenewDates();
     let accountDatesInfo = {};
 
-    // 【修改点1】代理验证失败时继续执行，而不是退出
+    // 代理验证：只有 HTTP_PROXY 模式才验证，SUB_URL 模式跳过
     if (PROXY_CONFIG && !SUB_URL) {
         const proxyOk = await checkProxy();
         if (!proxyOk) {
             console.log('[警告] 代理验证失败，将在无代理模式下继续执行...');
-            PROXY_CONFIG = null; // 清空代理配置，使用直连
+            PROXY_CONFIG = null;
         }
+    } else if (SUB_URL) {
+        console.log('[代理] SUB_URL 模式已启用，跳过代理验证。');
     }
     
     let proxyPool = [];
     let proxyIndex = 0;
     let proxyStats = { total: 0, healthy: 0, invalid: 0 };
 
-    // 【修改点2】SUB_URL 处理逻辑不变，但现在能执行到了
+    // SUB_URL 模式：下载并启动 Mihomo
     if (SUB_URL) {
         console.log('[代理池] 开始初始化 Mihomo 代理池...');
         const started = await setupMihomo(SUB_URL);
@@ -885,6 +980,7 @@ async function switchMihomoProxy(name) {
             console.log('[代理池] 正在刷新 provider...');
             try {
                 await axios.put('http://127.0.0.1:9090/providers/proxies/sub1');
+                console.log('[代理池] provider 刷新成功');
             } catch(e) {
                 console.log('[代理池] 刷新 provider 失败（可能还未启动）:', e.message);
             }
@@ -902,10 +998,10 @@ async function switchMihomoProxy(name) {
                 console.log('[代理池] 警告：没有找到可用的健康节点，将使用默认网络。');
             } else {
                 proxyPool.sort(() => Math.random() - 0.5);
-                console.log(`[代理池] 可用节点数: ${proxyPool.length}`);
+                console.log(`[代理池] ✅ 可用节点数: ${proxyPool.length}`);
             }
         } else {
-            console.log('[代理池] Mihomo 初始化失败，将使用默认网络。');
+            console.log('[代理池] ❌ Mihomo 初始化失败，将使用默认网络。');
         }
     }
 

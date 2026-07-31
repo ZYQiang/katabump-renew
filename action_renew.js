@@ -409,11 +409,11 @@ function getUsers() {
                     continue;
                 }
 
-                const dedupeKey = username.toLowerCase();
-                if (seenUsernames.has(dedupeKey)) {
-                    console.log(`[用户配置] 跳过重复账号: ${maskUsernameForLog(username)}`);
-                    continue;
-                }
+               // const dedupeKey = username.toLowerCase();
+                //if (seenUsernames.has(dedupeKey)) {
+               //     console.log(`[用户配置] 跳过重复账号: ${maskUsernameForLog(username)}`);
+                //    continue;
+               // }
 
                 seenUsernames.add(dedupeKey);
                 users.push({ username, password, serverId });

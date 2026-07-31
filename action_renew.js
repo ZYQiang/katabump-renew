@@ -181,8 +181,7 @@ const VIEWPORT_HEIGHT = 720;
 const RENEW_MAX_ATTEMPTS = 5;
 process.env.NO_PROXY = 'localhost,127.0.0.1';
 
-const HTTP_PROXY = process.env.HTTP_PROXY;
-const SUB_URL = process.env.SUB_URL;
+
 let PROXY_CONFIG = null;
 
 if (HTTP_PROXY && !SUB_URL) {

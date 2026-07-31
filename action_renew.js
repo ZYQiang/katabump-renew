@@ -392,7 +392,7 @@ function getUsers() {
             }
 
             const users = [];
-            const seenUsernames = new Set();
+            //const seenUsernames = new Set();
 
             for (const entry of rawUsers) {
                 if (!entry || typeof entry !== 'object') {
@@ -415,7 +415,7 @@ function getUsers() {
                 //    continue;
                // }
 
-                seenUsernames.add(dedupeKey);
+                //seenUsernames.add(dedupeKey);
                 users.push({ username, password, serverId });
             }
 

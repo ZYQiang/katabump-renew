@@ -98,8 +98,8 @@ if (HTTP_PROXY && !SUB_URL) {
         };
         console.log(`[代理] 检测到配置: 服务器=${PROXY_CONFIG.server}, 认证=${PROXY_CONFIG.username ? '是' : '否'}`);
     } catch (e) {
-        console.error('[代理] HTTP_PROXY 格式无效。');
-        process.exit(1);
+        console.error('[代理] HTTP_PROXY 格式无效，将忽略代理配置。');
+        PROXY_CONFIG = null;
     }
 }
 
@@ -344,7 +344,7 @@ async function dispatchCdpClick(page, x, y) {
             button: 'left',
             clickCount: 1
         });
-        await new Promise(r => setTimeout(r, 50 + Math.random() * 100)); // 模拟人手点击延迟
+        await new Promise(r => setTimeout(r, 50 + Math.random() * 100));
         await client.send('Input.dispatchMouseEvent', {
             type: 'mouseReleased',
             x: x,
@@ -706,13 +706,16 @@ async function setupMihomo(subUrl) {
             execSync('curl -L -o mihomo.gz https://github.com/MetaCubeX/mihomo/releases/download/v1.18.9/mihomo-linux-amd64-v1.18.9.gz');
             execSync('gzip -d mihomo.gz');
             execSync('chmod +x mihomo');
+            console.log('[代理池] Mihomo 下载完成！');
         } catch (e) {
             console.error('[代理池] 下载 Mihomo 失败:', e.message);
             return false;
         }
+    } else {
+        console.log('[代理池] Mihomo 已存在，跳过下载。');
     }
     
-const configYaml = `
+    const configYaml = `
 mixed-port: 7890
 allow-lan: false
 mode: rule
@@ -861,19 +864,30 @@ async function switchMihomoProxy(name) {
     const renewDates = loadRenewDates();
     let accountDatesInfo = {};
 
+    // 【修改点1】代理验证失败时继续执行，而不是退出
     if (PROXY_CONFIG && !SUB_URL) {
-        if (!await checkProxy()) process.exit(1);
+        const proxyOk = await checkProxy();
+        if (!proxyOk) {
+            console.log('[警告] 代理验证失败，将在无代理模式下继续执行...');
+            PROXY_CONFIG = null; // 清空代理配置，使用直连
+        }
     }
     
     let proxyPool = [];
     let proxyIndex = 0;
     let proxyStats = { total: 0, healthy: 0, invalid: 0 };
 
+    // 【修改点2】SUB_URL 处理逻辑不变，但现在能执行到了
     if (SUB_URL) {
+        console.log('[代理池] 开始初始化 Mihomo 代理池...');
         const started = await setupMihomo(SUB_URL);
         if (started) {
             console.log('[代理池] 正在刷新 provider...');
-            await axios.put('http://127.0.0.1:9090/providers/proxies/sub1').catch(()=>{});
+            try {
+                await axios.put('http://127.0.0.1:9090/providers/proxies/sub1');
+            } catch(e) {
+                console.log('[代理池] 刷新 provider 失败（可能还未启动）:', e.message);
+            }
             await new Promise(r => setTimeout(r, 2000));
             const proxies = await getMihomoProxies();
             proxyStats.total = proxies.length;
@@ -888,7 +902,10 @@ async function switchMihomoProxy(name) {
                 console.log('[代理池] 警告：没有找到可用的健康节点，将使用默认网络。');
             } else {
                 proxyPool.sort(() => Math.random() - 0.5);
+                console.log(`[代理池] 可用节点数: ${proxyPool.length}`);
             }
+        } else {
+            console.log('[代理池] Mihomo 初始化失败，将使用默认网络。');
         }
     }
 
@@ -998,7 +1015,7 @@ async function switchMihomoProxy(name) {
                 if (!loginTurnstileOk) {
                     console.log('   >> 登录阶段 Turnstile 验证失败，切换节点重试');
                     accountFailureReason = "登录阶段防火墙拦截";
-                    continue; // 触发节点重试
+                    continue;
                 }
 
                 console.log('正在输入凭据...');
@@ -1030,7 +1047,7 @@ async function switchMihomoProxy(name) {
                             daysLeft: "未知",
                             node: usedNode
                         };
-                        accountSuccess = true; // Set true to break out of outer loop since password is wrong
+                        accountSuccess = true;
                         break;
                     }
                 } catch (e) { }
@@ -1240,7 +1257,6 @@ async function switchMihomoProxy(name) {
                     break; 
                 } else {
                     accountFailureReason = `续期操作未成功完成`;
-                    // Let the account retry loop continue and switch node
                 }
 
             } catch (err) {
@@ -1276,7 +1292,7 @@ async function switchMihomoProxy(name) {
             try { await saveViewportScreenshot(page, path.join(photoDir, `${safeUsername}.png`)); } catch (e) {}
             await page.close().catch(()=>{});
         }
-    } // <-- Missing closing brace for the users loop added here
+    }
 
     // --- 发送最终汇总报告 ---
     let summaryMessage = `📊 *续期任务汇总报告*\n\n`;
